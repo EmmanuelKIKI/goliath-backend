@@ -1,0 +1,37 @@
+# Ce fichier me permet de déployer mon backend sur Render en une seule
+# fois, via "New +" > "Blueprint" dans le tableau de bord Render, en
+# pointant vers mon repo GitHub. Render lit ce fichier et configure
+# le service tout seul. Je n'ai plus qu'à remplir mes vraies valeurs
+# de variables d'environnement marquées "sync: false" dans le dashboard.
+
+services:
+  - type: web
+    name: goliath-backend
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    # Je laisse "rootDir" en commentaire par défaut : Render s'attend
+    # à trouver ce backend à la racine de mon repo. Si un jour je mets
+    # mon frontend et mon backend dans un seul repo (un dossier
+    # "backend/" et un dossier "frontend/"), je décommente la ligne
+    # suivante et je l'ajuste avec le bon nom de dossier.
+    # rootDir: backend
+    buildCommand: npm install && npx prisma generate
+    # Au démarrage, j'applique d'abord mes migrations Prisma sur ma
+    # base Supabase (via DIRECT_URL), puis je lance mon serveur.
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: FRONTEND_URL
+        sync: false

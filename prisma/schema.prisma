@@ -1,0 +1,225 @@
+// Ceci est le schéma de ma base de données. Je le modifie ici, puis je lance
+// "npm run prisma:migrate" pour appliquer les changements dans PostgreSQL.
+// J'ai choisi Prisma parce que ça me permet de garder un schéma clair et lisible,
+// sans avoir à écrire toutes mes requêtes SQL à la main.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // J'utilise deux URLs différentes parce que je connecte ma base à
+  // Supabase : "url" passe par le pooler de connexions (pgbouncer),
+  // utilisé par mon serveur pour ses requêtes courantes. "directUrl"
+  // est une connexion directe à Postgres, nécessaire uniquement pour
+  // que Prisma puisse exécuter mes migrations (le pooler ne le
+  // permet pas). En local avec un Postgres classique, je peux mettre
+  // exactement la même valeur dans les deux variables.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// UTILISATEUR
+// Pour cette version, je suis seul à utiliser la plateforme,
+// mais je structure quand même une vraie table utilisateur
+// pour pouvoir ajouter des comptes plus tard sans tout casser.
+// ============================================================
+model Utilisateur {
+  id             String   @id @default(uuid())
+  nom            String
+  email          String   @unique
+  motDePasseHash String
+  dateCreation   DateTime @default(now())
+
+  @@map("utilisateurs")
+}
+
+// ============================================================
+// BANDE
+// C'est le cœur de mon élevage : chaque groupe de poulets que
+// je reçois ou que je démarre est une "bande". Presque tout le
+// reste de l'application se rattache à une bande.
+// ============================================================
+model Bande {
+  id              String   @id @default(uuid())
+  code            String   @unique // ex: "BND-2026-01", je choisis mon propre code
+  dateArrivee     DateTime
+  effectifInitial Int
+  effectifActuel  Int
+  origine         String // ex: "achat poussins", "couvoir X"
+  statut          String   @default("actif") // actif | archive
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Je relie ici toutes les données qui dépendent d'une bande.
+  journalSanitaire    JournalSanitaire[]
+  planningVaccination PlanningVaccination[]
+  mouvementsStock     MouvementStock[]
+  transactions        TransactionFinanciere[]
+  taches              Tache[]
+
+  @@map("bandes")
+}
+
+// ============================================================
+// JOURNAL SANITAIRE
+// Chaque événement de santé que je note pour une bande :
+// vaccination faite, maladie observée, traitement donné, décès.
+// ============================================================
+model JournalSanitaire {
+  id              String   @id @default(uuid())
+  bandeId         String
+  bande           Bande    @relation(fields: [bandeId], references: [id], onDelete: Cascade)
+  date            DateTime
+  type            String // vaccination | maladie | traitement | deces
+  description     String?
+  nombreConcerne  Int? // combien de sujets sont concernés par cet événement
+  cout            Float? // coût éventuel (médicament, intervention vétérinaire...)
+  createdAt       DateTime @default(now())
+
+  // J'indexe bandeId et date car je vais très souvent filtrer
+  // mon journal sanitaire par bande et trier par date.
+  @@index([bandeId, date])
+  @@map("journal_sanitaire")
+}
+
+// ============================================================
+// PLANNING VACCINATION
+// Je sépare la planification des vaccins de mon journal sanitaire
+// général, parce que je veux des alertes automatiques dessus.
+// ============================================================
+model PlanningVaccination {
+  id            String    @id @default(uuid())
+  bandeId       String
+  bande         Bande     @relation(fields: [bandeId], references: [id], onDelete: Cascade)
+  nomVaccin     String
+  datePrevue    DateTime
+  dateEffectuee DateTime?
+  statut        String    @default("prevue") // prevue | faite | en_retard
+  createdAt     DateTime  @default(now())
+
+  @@index([bandeId, datePrevue])
+  @@map("planning_vaccination")
+}
+
+// ============================================================
+// ARTICLE DE STOCK
+// Tout ce que je stocke dans ma ferme : aliments, médicaments,
+// litière, ou autre chose. Le stock actuel se met à jour à
+// chaque mouvement (entrée ou sortie).
+// ============================================================
+model ArticleStock {
+  id               String   @id @default(uuid())
+  nom              String
+  categorie        String // aliment | medicament | litiere | autre
+  unite            String // ex: kg, sac, litre, dose
+  quantiteActuelle Float    @default(0)
+  seuilAlerte      Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  mouvements MouvementStock[]
+
+  @@map("articles_stock")
+}
+
+// ============================================================
+// MOUVEMENT DE STOCK
+// Chaque entrée (achat) ou sortie (consommation) d'un article.
+// Je peux lier une sortie à une bande précise pour savoir
+// combien elle a réellement consommé.
+// ============================================================
+model MouvementStock {
+  id           String       @id @default(uuid())
+  articleId    String
+  article      ArticleStock @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  type         String // entree | sortie
+  quantite     Float
+  date         DateTime     @default(now())
+  bandeId      String?
+  bande        Bande?       @relation(fields: [bandeId], references: [id], onDelete: SetNull)
+  coutUnitaire Float?
+  createdAt    DateTime     @default(now())
+
+  @@index([articleId, date])
+  @@index([bandeId])
+  @@map("mouvements_stock")
+}
+
+// ============================================================
+// TRANSACTION FINANCIERE
+// Chaque dépense ou revenu que j'enregistre. Je peux la lier
+// à une bande pour calculer sa rentabilité précise.
+// ============================================================
+model TransactionFinanciere {
+  id          String   @id @default(uuid())
+  type        String // depense | revenu
+  categorie   String // ex: aliment, medicament, poussin, vente, autre
+  montant     Float
+  date        DateTime @default(now())
+  bandeId     String?
+  bande       Bande?   @relation(fields: [bandeId], references: [id], onDelete: SetNull)
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@index([bandeId, date])
+  @@index([type, date])
+  @@map("transactions_financieres")
+}
+
+// ============================================================
+// CLIENT
+// Je garde une fiche simple de mes clients pour retrouver
+// facilement leur historique d'achats.
+// ============================================================
+model Client {
+  id        String   @id @default(uuid())
+  nom       String
+  contact   String?
+  createdAt DateTime @default(now())
+
+  ventes Vente[]
+
+  @@map("clients")
+}
+
+// ============================================================
+// VENTE
+// Chaque vente que je fais : poulets vivants, œufs, ou autre.
+// ============================================================
+model Vente {
+  id              String   @id @default(uuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date            DateTime @default(now())
+  produit         String // ex: "poulet vivant", "oeufs"
+  quantite        Float
+  prixUnitaire    Float
+  montantTotal    Float
+  statutLivraison String   @default("en_attente") // en_attente | livre | annule
+  createdAt       DateTime @default(now())
+
+  @@index([clientId, date])
+  @@map("ventes")
+}
+
+// ============================================================
+// TACHE
+// Mes tâches personnelles, ponctuelles ou récurrentes.
+// Je gère seul pour l'instant donc pas d'assignation à un employé.
+// ============================================================
+model Tache {
+  id          String   @id @default(uuid())
+  description String
+  date        DateTime
+  statut      String   @default("a_faire") // a_faire | fait
+  bandeId     String?
+  bande       Bande?   @relation(fields: [bandeId], references: [id], onDelete: SetNull)
+  recurrence  String? // null | quotidien | hebdomadaire | mensuel
+  createdAt   DateTime @default(now())
+
+  @@index([date, statut])
+  @@map("taches")
+}
