@@ -18,10 +18,11 @@ services:
     # suivante et je l'ajuste avec le bon nom de dossier.
     # rootDir: backend
     buildCommand: npm install && npx prisma generate
-    # Au démarrage : je synchronise ma base (db push), je crée mon
-    # compte automatiquement s'il n'existe pas encore (seed.js, sans
-    # effet si un compte existe déjà), puis je lance mon serveur.
-    startCommand: npx prisma db push --accept-data-loss && node prisma/seed.js && npm start
+    # Au démarrage, je synchronise juste ma base (db push) puis je
+    # lance mon serveur. Mon accès se fait via ACCES_NOM, comparé
+    # directement en mémoire, donc pas besoin d'étape de création de
+    # compte en base de données.
+    startCommand: npx prisma db push --accept-data-loss && npm start
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
@@ -33,12 +34,10 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
-        value: 7d
+        value: 30d
       - key: FRONTEND_URL
         sync: false
-      - key: SEED_NOM
-        sync: false
-      - key: SEED_EMAIL
-        sync: false
-      - key: SEED_MOT_DE_PASSE
+      # Le nom que je dois taper pour entrer dans mon app. Je choisis
+      # une valeur simple à retenir mais pas trop devinable au hasard.
+      - key: ACCES_NOM
         sync: false

@@ -14,9 +14,9 @@ const prisma = new PrismaClient();
 // ne les définis pas, j'utilise des valeurs par défaut clairement
 // temporaires, pour ne jamais me retrouver bloqué même si j'oublie
 // de les configurer.
-const NOM = process.env.SEED_NOM || "Jean Kiki";
-const EMAIL = process.env.SEED_EMAIL || "jean@goliath.local";
-const MOT_DE_PASSE = process.env.SEED_MOT_DE_PASSE || "ChangeMoiRapidement123";
+const NOM = process.env.SEED_NOM || "Emmanuel KIKI";
+const EMAIL = process.env.SEED_EMAIL || "dotomikiki@gmail.com";
+const MOT_DE_PASSE = process.env.SEED_MOT_DE_PASSE || "perpetue";
 
 async function main() {
   const nombreUtilisateurs = await prisma.utilisateur.count();
@@ -42,7 +42,7 @@ async function main() {
 
   console.log("[seed] J'ai créé mon compte initial :", utilisateur.email);
   if (!process.env.SEED_MOT_DE_PASSE) {
-    console.log("[seed] Mot de passe temporaire : ChangeMoiRapidement123 — je le change vite !");
+    console.log("[seed] Mot de passe temporaire : perpetue — je le change vite !");
   }
 }
 

@@ -1,14 +1,13 @@
-// Mes routes d'authentification. Ce sont les seules routes de toute
-// mon API qui ne passent pas par mon middleware d'authentification,
-// puisque je ne suis justement pas encore connecté à ce stade.
+// Mes routes d'accès. Une seule route publique (connexion), et une
+// route protégée (vérifier) pour que mon frontend confirme que mon
+// token stocké est toujours valide.
 
 const express = require("express");
 const router = express.Router();
-const { register, login, moi } = require("../controllers/authController");
+const { connexion, verifier } = require("../controllers/authController");
 const authMiddleware = require("../middlewares/auth");
 
-router.post("/register", register);
-router.post("/login", login);
-router.get("/moi", authMiddleware, moi);
+router.post("/connexion", connexion);
+router.get("/verifier", authMiddleware, verifier);
 
 module.exports = router;

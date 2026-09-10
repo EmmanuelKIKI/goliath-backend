@@ -21,20 +21,12 @@ datasource db {
 }
 
 // ============================================================
-// UTILISATEUR
-// Pour cette version, je suis seul à utiliser la plateforme,
-// mais je structure quand même une vraie table utilisateur
-// pour pouvoir ajouter des comptes plus tard sans tout casser.
+// AUTHENTIFICATION
+// Je n'ai pas de table utilisateur : je suis seul à avoir le lien de
+// mon application, donc mon accès se fait par comparaison avec une
+// variable d'environnement (ACCES_NOM), pas par une vraie table en
+// base de données. Voir src/controllers/authController.js.
 // ============================================================
-model Utilisateur {
-  id             String   @id @default(uuid())
-  nom            String
-  email          String   @unique
-  motDePasseHash String
-  dateCreation   DateTime @default(now())
-
-  @@map("utilisateurs")
-}
 
 // ============================================================
 // BANDE

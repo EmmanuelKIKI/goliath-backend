@@ -15,14 +15,12 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:deploy": "prisma db push --accept-data-loss",
-    "prisma:studio": "prisma studio",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:studio": "prisma studio"
   },
   "author": "Jean Kiki",
   "license": "UNLICENSED",
   "dependencies": {
     "@prisma/client": "^5.19.1",
-    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
