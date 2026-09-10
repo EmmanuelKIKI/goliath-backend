@@ -117,16 +117,29 @@ Je crée un repo GitHub (public ou privé) et j'y pousse le contenu de ce dossie
 2. Je connecte mon repo GitHub
 3. Je configure :
    - **Build Command** : `npm install && npx prisma generate`
-   - **Start Command** : `npx prisma migrate deploy && npm start`
+   - **Start Command** : `npx prisma db push --accept-data-loss && node prisma/seed.js && npm start`
    - **Environment** : Node
-4. Dans l'onglet **Environment**, j'ajoute mes variables : `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `FRONTEND_URL`, `NODE_ENV=production`
+
+   Je n'ai pas de fichiers de migration Prisma versionnés dans ce projet (il faudrait les générer via une connexion directe à une base de données, en local). J'utilise donc `prisma db push`, qui synchronise directement ma base Supabase avec `schema.prisma` à chaque déploiement — largement suffisant pour un usage solo. J'enchaîne avec `node prisma/seed.js`, qui crée automatiquement mon compte utilisateur au tout premier démarrage (voir étape 4 ci-dessous) — je n'ai ensuite plus aucune commande à taper à la main. Si un jour je veux un vrai historique de migrations, je pourrai générer une migration initiale en local avec `npx prisma migrate dev`, puis repasser sur `migrate deploy`.
+4. Dans l'onglet **Environment**, j'ajoute mes variables : `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `FRONTEND_URL`, `NODE_ENV=production`, et les trois variables de mon compte (voir étape 4) : `SEED_NOM`, `SEED_EMAIL`, `SEED_MOT_DE_PASSE`
 
 Je n'ai rien à configurer pour `PORT` : Render l'injecte automatiquement, et mon code le lit déjà via `process.env.PORT`.
 
-### 4. Créer mon compte utilisateur en production
+### 4. Créer mon compte utilisateur — automatiquement, sans commande à taper
 
-Une fois mon service démarré sur Render, je crée mon compte via la route d'inscription, en remplaçant l'URL par celle de mon service Render :
+C'est le point que j'ai simplifié : plutôt que d'appeler la route d'inscription à la main (avec curl ou PowerShell, ce qui pose souvent des soucis sous Windows), mon serveur crée mon compte tout seul à son premier démarrage, à partir de trois variables d'environnement que je définis sur Render :
 
+| Variable | Exemple |
+|---|---|
+| `SEED_NOM` | `Emmanuel KIKI` |
+| `SEED_EMAIL` | `dotomikiki@gmail.com` |
+| `SEED_MOT_DE_PASSE` | `UnMotDePasseSolide123` |
+
+Je les ajoute dans l'onglet **Environment** de mon service Render (même endroit que `DATABASE_URL`), puis je redéploie. Dans les logs, je dois voir une ligne `[seed] J'ai créé mon compte initial : dotomikiki@gmail.com`.
+
+Une fois que mon compte existe, ce script ne fait plus rien à chaque redémarrage suivant (il vérifie d'abord si un compte existe déjà) — je peux laisser ces variables en place sans risque.
+
+Si je préfère l'ancienne méthode (appeler la route à la main), elle reste disponible :
 ```bash
 curl -X POST https://mon-service.onrender.com/auth/register \
   -H "Content-Type: application/json" \

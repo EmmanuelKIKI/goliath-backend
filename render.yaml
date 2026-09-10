@@ -18,9 +18,10 @@ services:
     # suivante et je l'ajuste avec le bon nom de dossier.
     # rootDir: backend
     buildCommand: npm install && npx prisma generate
-    # Au démarrage, j'applique d'abord mes migrations Prisma sur ma
-    # base Supabase (via DIRECT_URL), puis je lance mon serveur.
-    startCommand: npx prisma migrate deploy && npm start
+    # Au démarrage : je synchronise ma base (db push), je crée mon
+    # compte automatiquement s'il n'existe pas encore (seed.js, sans
+    # effet si un compte existe déjà), puis je lance mon serveur.
+    startCommand: npx prisma db push --accept-data-loss && node prisma/seed.js && npm start
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
@@ -34,4 +35,10 @@ services:
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: FRONTEND_URL
+        sync: false
+      - key: SEED_NOM
+        sync: false
+      - key: SEED_EMAIL
+        sync: false
+      - key: SEED_MOT_DE_PASSE
         sync: false
