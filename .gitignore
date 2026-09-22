@@ -1,20 +1,8 @@
-# Je n'envoie jamais mes dépendances installées ni mes secrets sur Git
-node_modules/
 .env
 .env.local
-
-# Logs que je ne veux pas garder dans l'historique
-npm-debug.log*
-logs/
-*.log
-
-# Fichiers générés par Prisma que je peux régénérer avec "npm run prisma:generate"
-/generated
-
-# Fichiers système que mon OS crée tout seul
-.DS_Store
-Thumbs.db
-
-# Dossier de build si je build un jour le backend
+node_modules/
 dist/
-build/
+.DS_Store
+supabase/.branches/
+supabase/.temp/
+*.log

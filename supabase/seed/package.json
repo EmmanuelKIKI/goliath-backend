@@ -1,0 +1,18 @@
+{
+  "name": "goliath-backend-seed",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Script de seed local (Admin API) pour créer l'utilisateur unique de GOLIATH.",
+  "type": "module",
+  "scripts": {
+    "seed": "tsx create-app-user.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.7.0"
+  }
+}

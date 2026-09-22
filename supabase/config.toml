@@ -1,0 +1,42 @@
+# supabase/config.toml
+# Configuration locale du projet Supabase GOLIATH.
+
+project_id = "goliath-backend"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[storage]
+enabled = true
+file_size_limit = "5MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_signup = false
+
+[functions.auth-login]
+verify_jwt = false
+
+[functions.ai-veterinaire]
+verify_jwt = true
+
+[functions.ai-analyse-elevage]
+verify_jwt = true
+
+[functions.ai-analyse-image]
+verify_jwt = true

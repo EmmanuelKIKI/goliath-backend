@@ -1,185 +1,197 @@
-# GOLIATH — Backend
+# GOLIATH — Backend (Supabase + Gemini)
 
-J'ai créé ce backend pour gérer mon élevage de poulets Goliath au quotidien. C'est le cœur de ma plateforme GOLIATH : toute la logique métier et toutes mes données passent par cette API. Le frontend (une PWA) vient se connecter dessus.
+C'est le backend de mon application GOLIATH, ma ferme avicole (poulets
+Goliath, race béninoise à croissance rapide). Je remplace mon cahier papier
+par cette application : bâtiments → lots → suivis quotidiens (aliment, eau,
+santé, traitements, vaccinations, poids, œufs, hygiène, incidents), plus un
+assistant IA (Gemini) et un historique d'analyses.
 
-Je gère mon élevage seul, et je suis seul à avoir le lien de cette application — j'ai donc volontairement un accès ultra-simplifié : pas d'email, pas de mot de passe, juste mon nom.
+Toute ma logique métier critique, tous mes calculs officiels et toute
+opération sensible restent côté serveur/SQL. Je ne fais jamais confiance au
+frontend comme source de vérité. Ce dépôt ne couvre que le backend ; le
+frontend fait l'objet d'un prompt et d'un projet séparés.
 
-## Ce que fait cette API
+## 1. Stack
 
-- **Bandes** : je crée et je suis chacune de mes bandes de poulets
-- **Santé** : je note mes événements sanitaires, je planifie mes vaccinations, je suis ma mortalité
-- **Stocks** : je gère mes articles (aliment, médicament, litière) et tous mes mouvements d'entrée/sortie
-- **Finances** : je note mes dépenses et mes revenus, je calcule ma rentabilité par bande, j'exporte mes rapports
-- **Clients & Ventes** : je garde une fiche de mes clients et j'enregistre mes ventes
-- **Tâches** : je gère ma liste de tâches quotidiennes, avec ou sans lien vers une bande
+- PostgreSQL Supabase, migrations SQL versionnées
+- Supabase Auth : un seul utilisateur (moi), pas d'inscription
+- RLS activée sur toutes les tables, sans exception
+- Supabase Storage : bucket privé `ai-photos`
+- Edge Functions (Deno) : `auth-login`, `ai-veterinaire`, `ai-analyse-elevage`, `ai-analyse-image` — rien d'autre
+- Google Gemini, appelé uniquement depuis les Edge Functions, via `fetch()` (pas le SDK npm, non garanti sous Deno)
 
-## Stack technique
-
-- **Node.js** + **Express** pour l'API REST
-- **PostgreSQL** comme base de données
-- **Prisma** comme ORM, pour définir mon schéma et interroger ma base facilement
-- **JWT** (jsonwebtoken) pour protéger mes routes une fois connecté
-- **Helmet**, **CORS**, **Morgan** pour la sécurité et les logs
-
-## Mon système d'accès (volontairement minimaliste)
-
-Comme je suis seul à avoir le lien de mon application, je n'ai pas construit un vrai système de comptes avec email et mot de passe. Mon accès repose sur une seule variable d'environnement, `ACCES_NOM` :
-
-1. Je définis `ACCES_NOM` (par exemple `kiki`) dans mon `.env` ou sur Render
-2. Sur mon frontend, je tape ce même nom dans le seul champ de la page de connexion
-3. Mon serveur compare les deux valeurs (sans tenir compte des majuscules), et si ça correspond, il me renvoie un token JWT valable 30 jours
-
-Il n'y a aucune table utilisateur en base de données pour cette partie : c'est une comparaison directe en mémoire. Je garde ça en tête : la sécurité de mon app dépend entièrement du fait que je ne partage mon lien Render avec personne, et que `ACCES_NOM` reste connu de moi seul.
-
-## Installation
-
-Ce que je dois faire pour lancer ce backend chez moi :
-
-### 1. Installer PostgreSQL
-
-Si je ne l'ai pas déjà, j'installe PostgreSQL sur ma machine, ou j'utilise un service PostgreSQL hébergé (Supabase, par exemple). Je crée une base de données vide.
-
-### 2. Installer les dépendances
-
-```bash
-cd backend
-npm install
-```
-
-### 3. Configurer mes variables d'environnement
-
-```bash
-cp .env.example .env
-```
-
-Puis j'ouvre `.env` et je remplis mes vraies valeurs, en particulier :
-- `DATABASE_URL` et `DIRECT_URL` avec mes identifiants PostgreSQL (en local avec un Postgres classique, je peux mettre la même valeur dans les deux)
-- `JWT_SECRET` avec une longue chaîne aléatoire (je peux en générer une avec `openssl rand -hex 32`)
-- `ACCES_NOM` avec le nom que je veux taper pour me connecter
-
-### 4. Créer les tables dans ma base de données
-
-```bash
-npm run prisma:deploy
-```
-
-Cette commande lit mon fichier `prisma/schema.prisma` et crée toutes mes tables dans PostgreSQL.
-
-### 5. Lancer mon serveur
-
-En développement (avec redémarrage automatique) :
-```bash
-npm run dev
-```
-
-En production :
-```bash
-npm start
-```
-
-Mon API tourne alors sur `http://localhost:4000` (ou le port que j'ai défini dans `.env`). Je me connecte directement avec le nom défini dans `ACCES_NOM`, aucune étape de création de compte n'est nécessaire.
-
-## Déployer en production (Render + Supabase)
-
-C'est comme ça que je fais tourner GOLIATH en vrai, accessible depuis mon téléphone n'importe où, pas seulement en local.
-
-### 1. Créer ma base de données sur Supabase
-
-1. Je crée un compte sur [supabase.com](https://supabase.com) et un nouveau projet
-2. Je vais dans **Project Settings > Database > Connection string**
-3. Je récupère deux URLs différentes :
-   - La connexion **"Transaction pooler"** (port 6543) → pour `DATABASE_URL`
-   - La connexion **directe** (port 5432) → pour `DIRECT_URL`
-
-Je garde ces deux URLs de côté, je les colle bientôt dans Render.
-
-### 2. Pousser mon code sur GitHub
-
-Je crée un repo GitHub (public ou privé) et j'y pousse le contenu de ce dossier `backend/`.
-
-### 3. Déployer sur Render
-
-**Option A — avec le Blueprint (le plus rapide) :**
-1. Sur [render.com](https://render.com), je clique sur **New +** puis **Blueprint**
-2. Je connecte mon repo GitHub, Render détecte automatiquement mon fichier `render.yaml`
-3. Render me demande de remplir les variables marquées comme secrètes : `DATABASE_URL`, `DIRECT_URL`, `FRONTEND_URL`, `ACCES_NOM`
-
-**Option B — manuellement :**
-1. Sur Render, je clique sur **New +** puis **Web Service**
-2. Je connecte mon repo GitHub
-3. Je configure :
-   - **Build Command** : `npm install && npx prisma generate`
-   - **Start Command** : `npx prisma db push --accept-data-loss && npm start`
-   - **Environment** : Node
-
-   Je n'ai pas de fichiers de migration Prisma versionnés dans ce projet. J'utilise `prisma db push`, qui synchronise directement ma base Supabase avec `schema.prisma` à chaque déploiement — largement suffisant pour un usage solo.
-4. Dans l'onglet **Environment**, j'ajoute mes variables : `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `FRONTEND_URL`, `NODE_ENV=production`, et `ACCES_NOM` (le nom que je taperai pour me connecter)
-
-Je n'ai rien à configurer pour `PORT` : Render l'injecte automatiquement, et mon code le lit déjà via `process.env.PORT`.
-
-### 4. Me connecter
-
-Une fois mon service en ligne, j'ouvre mon frontend, je tape le nom exact que j'ai mis dans `ACCES_NOM`, et j'entre directement. Aucune commande à taper dans un terminal.
-
-### 5. Brancher mon frontend dessus
-
-Dans le `.env` de mon frontend, je remplace `VITE_API_URL` par l'URL de mon service Render (`https://mon-service.onrender.com`), puis je rebuild.
-
-### À savoir sur le plan gratuit de Render
-
-Un service web gratuit sur Render se met en veille après un moment d'inactivité, et met quelques secondes à se "réveiller" au prochain appel. C'est sans impact sur mes données, juste un petit délai sur la toute première requête après une pause. Si ça me gêne au quotidien, je peux passer sur un plan payant qui reste toujours actif.
-
-## Structure de mes dossiers
+## 2. Arborescence
 
 ```
-backend/
-├── src/
-│   ├── controllers/     # Toute ma logique métier, module par module
-│   ├── routes/          # La définition de mes routes HTTP
-│   ├── middlewares/      # Authentification et gestion des erreurs
-│   ├── utils/            # Petits outils réutilisés partout (validation, erreurs...)
-│   ├── prismaClient.js   # Ma connexion unique à la base de données
-│   └── index.js          # Le point de démarrage de mon serveur
-├── prisma/
-│   └── schema.prisma      # Le schéma complet de ma base de données
+goliath-backend/
+├── supabase/
+│   ├── migrations/
+│   │   ├── 0001_init_schema.sql
+│   │   ├── 0002_rls_policies.sql
+│   │   ├── 0003_storage_policies.sql
+│   │   ├── 0004_statistics_kpi_views.sql
+│   │   └── 0005_export_import.sql
+│   ├── functions/
+│   │   ├── auth-login/index.ts
+│   │   ├── ai-veterinaire/index.ts
+│   │   ├── ai-analyse-elevage/index.ts
+│   │   ├── ai-analyse-image/index.ts
+│   │   └── _shared/
+│   │       ├── gemini.ts
+│   │       ├── cors.ts
+│   │       └── validation.ts
+│   ├── seed/
+│   │   ├── create-app-user.ts
+│   │   └── package.json
+│   └── config.toml
+├── tests/
+│   ├── sql/
+│   │   ├── 01_calculs_base.sql
+│   │   ├── 02_kpi.sql
+│   │   ├── 03_rls.sql
+│   │   └── 04_export_import.sql
+│   └── functions/
+│       ├── validation_test.ts
+│       └── gemini_test.ts
 ├── .env.example
-├── render.yaml           # Configuration de déploiement automatique sur Render
-└── package.json
+├── .gitignore
+└── README.md
 ```
 
-## Authentification
+## 3. Règle d'accès direct vs Edge Function
 
-Toutes mes routes, sauf `/auth/connexion`, exigent un token JWT. Je récupère ce token en me connectant via `/auth/connexion` avec mon nom, puis je l'envoie dans chaque requête suivante :
+- CRUD normal (lots, bâtiments, suivis, aliment, achats, eau, santé,
+  traitements, vaccinations, hygiène, œufs, poids, incidents, paramètres,
+  export/import JSON, lecture des statistiques et de l'historique IA) → en
+  direct via `supabase-js`, protégé par RLS.
+- Edge Functions réservées exclusivement à `auth-login` et aux trois
+  fonctions Gemini.
+- Statistiques et KPI → fonctions SQL (`get_lot_kpis` et les `fn_*`),
+  interrogées en lecture directe.
+- Photos → upload/suppression en direct via `supabase.storage`, protégé par
+  policies. Les URL signées de lecture sont générées côté frontend
+  (`createSignedUrl`), pas via Edge Function.
 
+## 4. Authentification — un seul utilisateur
+
+Je n'ai qu'un seul utilisateur Supabase, propriétaire de l'application. Il
+est créé une seule fois, en local, via le script `supabase/seed/create-app-user.ts`,
+qui appelle l'Admin API (`supabase.auth.admin.createUser`) — jamais un
+script SQL touchant `auth.users`.
+
+L'Edge Function `auth-login` reçoit mon code d'accès en clair, le compare au
+hash bcrypt stocké dans `APP_ACCESS_CODE_HASH`, et si c'est correct, ouvre
+une session sur mon utilisateur unique avec la clé de service. Le frontend
+ne voit jamais `APP_USER_EMAIL` ni `APP_USER_PASSWORD`, uniquement le jeton
+de session final.
+
+## 5. KPI
+
+Toutes les formules de `supabase/migrations/0004_statistics_kpi_views.sql`
+sont documentées en commentaire SQL juste au-dessus de leur implémentation,
+avec des paramètres explicites (`p_lot_id`, `p_date_debut`, `p_date_fin`),
+jamais une période implicite. Le FCR retourne `null` explicitement tant que
+je n'ai pas au moins deux pesées enregistrées sur la période — jamais une
+valeur inventée.
+
+J'ai dû ajouter une colonne `incidents.resolved` (booléen), non listée
+explicitement dans le schéma de départ, parce que le KPI « taux de
+résolution des incidents » ne peut pas exister sans une notion de résolution.
+
+## 6. Gemini
+
+Modèle par défaut : `gemini-3.1-flash-lite`, lu depuis la variable
+d'environnement `GEMINI_MODEL` (jamais en dur). Gemini 2.0 est retiré et la
+famille 2.5 (flash / pro / flash-lite) s'arrête le 16 octobre 2026 : je ne
+construis rien de neuf dessus. Je vérifie les quotas actuels sur
+`ai.google.dev/gemini-api/docs/rate-limits` au moment du build.
+
+Je ne transmets à Gemini que des données réellement présentes en base.
+Gemini n'invente jamais une donnée manquante : il le dit explicitement.
+Gemini ne se présente jamais comme vétérinaire et ne pose jamais de
+diagnostic confirmé.
+
+## 7. Stockage des photos
+
+Bucket `ai-photos` privé, jamais d'URL publique. Chemin imposé :
+`{lot_id}/{uuid}.jpg` ou `sans-lot/{uuid}.jpg`, vérifié par policy Storage
+(pas seulement par convention côté frontend). Formats acceptés : JPG, JPEG,
+PNG, WebP. Taille max 5 Mo (la compression a lieu côté client avant upload).
+La suppression d'une photo retire le fichier du bucket et met
+`ai_analyses.image_path` à `null`, sans supprimer l'analyse texte associée.
+
+## 8. Offline / synchronisation
+
+Toutes mes clés primaires sont des UUID générés côté client dès la
+création, y compris hors connexion : un insert rejoué est donc idempotent
+(même UUID = même ligne). Chaque table a un `updated_at` maintenu par
+trigger, utilisé pour détecter les conflits lors d'une synchronisation
+différée (le frontend transmet `base_updated_at` ; si la ligne a changé
+depuis, le conflit est signalé explicitement, jamais un écrasement
+silencieux). Une suppression rejouée sur une ligne déjà supprimée est un
+succès silencieux.
+
+## 9. Export / import JSON
+
+`export_full_backup()` et `import_full_backup(payload)` sont de simples
+fonctions SQL appelées en RPC direct (pas des Edge Functions, puisque ce
+n'est que du CRUD élargi). L'import est tout ou rien : en cas d'erreur de
+structure, de version de format ou de type, rien n'est appliqué
+partiellement. L'export JSON contient l'historique IA sans les fichiers
+image binaires (juste leur chemin dans le bucket).
+
+## 10. Installation et commandes (Windows / PowerShell)
+
+```powershell
+# Installer la CLI Supabase (une fois)
+scoop install supabase
+
+# Se connecter et lier le projet
+supabase login
+supabase link --project-ref xxxxx
+
+# Copier et remplir mes variables locales
+Copy-Item .env.example .env
+notepad .env
+
+# Appliquer toutes les migrations (schéma, RLS, storage, KPI, export/import)
+supabase db push
+
+# Déployer les Edge Functions
+supabase functions deploy auth-login --no-verify-jwt
+supabase functions deploy ai-veterinaire
+supabase functions deploy ai-analyse-elevage
+supabase functions deploy ai-analyse-image
+
+# Déclarer mes secrets (jamais committés)
+supabase secrets set APP_ACCESS_CODE_HASH="..." APP_USER_EMAIL="ferme@local.app" APP_USER_PASSWORD="..." GEMINI_API_KEY="..." GEMINI_MODEL="gemini-3.1-flash-lite"
+
+# Créer mon utilisateur unique (une seule fois, en local)
+cd supabase\seed
+npm install
+$env:SUPABASE_URL="https://xxxxx.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY="..."
+$env:APP_USER_EMAIL="ferme@local.app"
+$env:APP_USER_PASSWORD="..."
+npm run seed
+cd ..\..
+
+# Lancer les tests SQL (pgTAP, en local avec `supabase start`)
+supabase test db
+
+# Lancer les tests Deno des Edge Functions
+deno test --allow-env supabase\functions\_shared tests\functions
 ```
-Authorization: Bearer <mon_token>
-```
 
-Mon token est valable 30 jours par défaut (je peux changer ça avec `JWT_EXPIRES_IN` dans mon `.env`).
+## 11. Ce que je n'ai pas construit (volontairement)
 
-## Aperçu des routes principales
+Pas d'inscription, pas de comptes multiples, pas de rôles complexes, pas de
+paiement, pas d'abonnement, pas de marketplace, aucun KPI calculé par
+Gemini (tout est SQL/TypeScript), aucune Edge Function pour du simple CRUD.
 
-| Méthode | Route | Ce que ça fait |
-|---|---|---|
-| POST | `/auth/connexion` | Je me connecte avec mon nom |
-| GET | `/auth/verifier` | Mon frontend vérifie que mon token est toujours valide |
-| GET | `/dashboard` | Mon tableau de bord global |
-| GET/POST | `/bandes` | Je liste / crée une bande |
-| GET/POST | `/bandes/:bandeId/journal-sanitaire` | Mon journal sanitaire par bande |
-| GET | `/bandes/:bandeId/mortalite` | Mes statistiques de mortalité |
-| GET/POST | `/vaccinations` | Mon calendrier de vaccination |
-| GET/POST | `/stocks/articles` | Mes articles de stock |
-| POST | `/stocks/mouvements` | Mes entrées/sorties de stock |
-| GET/POST | `/finances/transactions` | Mes dépenses et revenus |
-| GET | `/finances/rentabilite/:bandeId` | La rentabilité d'une bande |
-| GET | `/finances/rapport/export` | Export CSV de mon rapport financier |
-| GET/POST | `/clients` | Mes fiches clients |
-| GET/POST | `/ventes` | Mes ventes |
-| GET/POST | `/taches` | Mes tâches personnelles |
+## 12. Priorité si un choix s'impose
 
-Toutes les routes acceptent aussi PUT et DELETE là où ça a du sens (je modifie ou je supprime un enregistrement).
-
-## Ce que je prévois pour la suite
-
-- Un vrai système multi-utilisateurs (email + mot de passe, ou plusieurs noms d'accès) si j'embauche un jour
-- Des notifications automatiques (email ou SMS) pour mes alertes de stock et de vaccination
+Données → fonctionnement offline → synchronisation → sécurité → IA →
+statistiques → exports. Si une fonctionnalité spectaculaire rend
+l'application fragile, je choisis la solution simple et fiable plutôt que
+la plus impressionnante.
